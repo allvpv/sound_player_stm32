@@ -7,7 +7,7 @@
 #include <libopencm3/cm3/nvic.h>
 
 #define SET_PLAYBACK_LED_INDICATOR() gpio_set(GPIOA, GPIO6)
-#define CLEAR_PLAYBACK_LED_INDICATOR gpio_clear(GPIOA, GPIO6)
+#define CLEAR_PLAYBACK_LED_INDICATOR() gpio_clear(GPIOA, GPIO6)
 
 /* Debouncing parameters */
 #define WARMUP_COUNT 4
@@ -187,7 +187,8 @@ void MoveSongBackward(void) {
 }
 
 void MoveSongForward(void) {
-    gSongIndexByte += PLAYBACK_STEP;
+    if (gSongIndexByte < gSongDataSize)
+        gSongIndexByte += PLAYBACK_STEP;
 }
 
 void ResetSongPosition(void) {
