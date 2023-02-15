@@ -1,0 +1,396 @@
+======================================================================
+Instalowanie zestawu narzędzi GNU dla ARM Cortex-M
+======================================================================
+
+Opcja --prefix w poniżej opisanych poleceniach konfiguratora
+(polecenie configure) określa miejsce, gdzie zostanie zainstalowany
+zestaw narzędzi. Można go zainstalować w katalogu domowym użytkownika,
+podając np.
+
+--prefix=/home/user/arm
+
+lub w jakimś katalogu systemowym, podając np.
+
+--prefix=/usr/local/arm
+
+Jeśli instalujemy programy w katalogu systemowym, do którego
+modyfikowania potrzebne są prawa administratora, to polecenie make
+install powinno wykonywać się z uprawnieniami administratora, dlatego
+należy poprzedzić je poleceniem sudo, czyli
+
+sudo make install
+
+Poniżej zakładamy, że w bieżącym katalogu mamy następujące paczki:
+
+binutils-2.29.tar.gz
+gcc-6.4.0.tar.gz
+gdb-8.0.1.tar.gz
+newlib-2.4.0.20161025.tar.gz
+openocd-0.10.0.tar.gz
+
+Generalnie zaleca się użycie najnowszych wersji pakietów, co wymaga
+odpowiedniego zmodyfikowawania tego przykładu, ale najnowsze wersje nie zawsze
+działają poprawie.
+
+======================================================================
+BINUTILS
+======================================================================
+
+Instalowanie środowiska programistycznego należy rozpocząć od pakietu
+Binutils. Jego najnowszą wersję można znaleźć na stronie
+http://ftp.gnu.org/gnu/binutils. Rozpakowanie źródeł i instalowanie
+pakietu przebiega następujaco:
+
+tar -zxf binutils-2.29.tar.gz
+cd binutils-2.29
+mkdir build
+cd build
+../configure --target=arm-eabi --prefix=/home/user/arm
+make
+make install
+cd ../..
+
+======================================================================
+PATH
+======================================================================
+
+Instalujemy kompilator skrośny (ang. cross compiler) – kompilacja jest
+wykonywana na komputerze o innej architekturze niż architektura
+procesora, na której ma być wykonywany skompilowany program. Parametr
+--target określa docelową architekturę, na którą będą generowane pliki
+wynikowe. Parametr --prefix określa miejsce, gdzie będą umieszczane
+pliki wykonywalne zestawu narzędzi. Aby mieć do nich dostęp, trzeba
+ustawić ścieżkę poszukiwania plików. Najprościej można to zrobić w
+pliku .bash_profile (w niektórych dystrybucjach .profile) lub .bashrc.
+Pliki te znajdują się w katalogu domowym użytkownika. Należy dodać na
+końcu linijkę, zależnie od wyspecyfikowanego w parametrze --prefix
+miejsca, gdzie instalujemy narzędzia i od tego, jakich jeszcze innych
+narzędzi używamy, przykładowo
+
+PATH=$PATH:$HOME/bin:$HOME/arm/bin:$HOME/msp430/bin
+export PATH
+
+lub
+
+PATH=$PATH:$HOME/bin:/usr/local/arm/bin:/usr/local/msp430/bin
+export PATH
+
+Na czas instalowania kolejnych składników środowiska programistycznego
+wystarczy wykonać polecenie (zależnie od miejsca, gdzie instalujemy
+narzędzia)
+
+export PATH=$PATH:$HOME/arm/bin
+
+lub
+
+export PATH=$PATH:/usr/local/arm/bin
+
+Pamiętajmy o dodaniu we wszystkich ścieżkach podkatalogu /bin.
+
+======================================================================
+GCC
+======================================================================
+
+Kolejnym pakietem, który trzeba zainstalować, jest GCC. Adresy
+serwerów oferujących GCC dostępne są na stronie
+http://gcc.gnu.org/mirrors.html. Ze względu na występujący w rdzeniach
+Cortex-M3 drobny błąd w niektórych wariantach instrukcji ldrd, należy
+użyć wersji co najmniej 4.4.0. Od tej wersji dla Cortex-M3 domyślnie
+ustawiona jest opcja -mfix-cortex-m3-ldrd, która zapobiega używaniu
+przez kompilator wadliwie działających instrukcji. Cortex-M4 jest
+wspierany od wersji 4.6.0. Cortex-M7 - co najmniej od wersji 5.4.
+Po ściągnięciu pakietu należy go rozpakować:
+
+tar -zxf gcc-6.4.0.tar.gz
+cd gcc-6.4.0
+
+Mikroprocesory ARM używają trzech zestawów instrukcji: ARM, Thumb i
+Thumb-2. Dla każdego z tych zestawów trzeba mieć oddzielny zestaw
+bibliotek. Umożliwia to opcja --enable-multilib. Opcji tej jednak nie
+trzeba podawać podczas konfigurowania zestawu narzędzi, gdyż jest
+domyślna. Natomiast w pliku gcc-6.4.0/gcc/config/arm/t-arm-elf
+musimy zdefiniować, jakie wersje bibliotek mają zostać skompilowane.
+Najlepiej jest nadpisać ten plik dostarczonym plikiem t-arm-elf.
+
+Dostarczony plik zawiera następujące definicje:
+
+MULTILIB_OPTIONS     = mthumb
+MULTILIB_DIRNAMES    = thumb
+MULTILIB_OPTIONS    += mcpu=cortex-m0/mcpu=cortex-m0plus/mcpu=cortex-m3/mcpu=cortex-m4/mcpu=cortex-m7
+MULTILIB_DIRNAMES   += cortex-m0 cortex-m0plus cortex-m3 cortex-m4 cortex-m7
+MULTILIB_OPTIONS    += mfloat-abi=softfp
+MULTILIB_DIRNAMES   += soft-fp-abi
+MULTILIB_OPTIONS    += mfpu=fpv4-sp-d16
+MULTILIB_DIRNAMES   += sp-fpu
+MULTILIB_EXCEPTIONS  = mthumb
+MULTILIB_EXCEPTIONS += mcpu=cortex-m*
+MULTILIB_EXCEPTIONS += mfloat-abi=softfp*
+MULTILIB_EXCEPTIONS += mfpu=fpv4-sp-d16*
+MULTILIB_EXCEPTIONS += mthumb/mfloat-abi=softfp*
+MULTILIB_EXCEPTIONS += mthumb/mfpu=fpv4-sp-d16*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m0/mfloat-abi=softfp*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m0plus/mfloat-abi=softfp*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m3/mfloat-abi=softfp*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m0/mfpu=fpv4-sp-d16*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m0plus/mfpu=fpv4-sp-d16*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m3/mfpu=fpv4-sp-d16*
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m4/mfloat-abi=softfp
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m4/mfpu=fpv4-sp-d16
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m7/mfloat-abi=softfp
+MULTILIB_EXCEPTIONS += mthumb/mcpu=cortex-m7/mfpu=fpv4-sp-d16
+MULTILIB_MATCHES     =
+MULTILIB_OSDIRNAMES  = mthumb/mcpu.cortex-m0=!cortex-m0
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m0plus=!cortex-m0plus
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m3=!cortex-m3
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m4=!cortex-m4
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m4/mfloat-abi.softfp/mfpu.fpv4-sp-d16=!cortex-m4/fpu
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m7=!cortex-m7
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m7/mfloat-abi.softfp/mfpu.fpv4-sp-d16=!cortex-m7/fpu
+
+Plik t-arm-elf nie powinien zawierać żadnych innych definicji
+rozpoczynających się od MULTILIB_ lub EXTRA_MULTILIB_, np.
+określających konieczność zbudowania niepotrzebnych nam bibliotek
+runtime języka C:
+
+EXTRA_MULTILIB_PARTS = crtbegin.o crtend.o crti.o crtn.o
+
+Definicje w dostarczonym pliku t-arm-elf określają, że w domyślnym dla
+bibliotek katalogu znajdą się wersje bibliotek używające zestawu
+instrukcji ARM, w jego podkatalogach cortex-m0, cortex-m0plus,
+cortex-m3, cortex-m4 wersje używające zestawu Thumb-2 odpowiednio dla
+rdzeni Cortex-M0, Cortex-M0+, Cortex-M3, Cortex-M4. W podkatalogu
+cortex-m4/fpu zostaną umieszczone biblioteki używające jednostki
+zmiennoprzecinkowej (ang. floating point unit) rdzenia cortex-M4, a w
+podkatalogu cortex-m4 znajdą się biblioteki z programową emulacją
+operacji zmiennoprzecinkowych.
+
+Konsolidator będzie dołączał właściwe biblioteki na podstawie
+argumentów podanych w linii poleceń (konsolidatora lub kompilatora).
+Domyślnie dołączane będą biblioteki używające zestawu instrukcji ARM.
+Zastosowanie łącznie opcji -mthumb oraz -mcpu=cortex-m* sprawi, że
+dołączone zostaną biblioteki używające zestawu instrukcji Thumb-2
+dla odpowiedniego rdzenia. Nazwy opcji kompilatora (z pominięciem
+początkowego myślnika) specyfikuje się za pomocą parametru
+MULTILIB_OPTIONS. Nazwy podkatalogów, w których mają być umieszczane
+odpowiadające im wersje bibliotek, wymienia się w parametrze
+MULTILIB_OSDIRNAMES. Parametr MULTILIB_EXCEPTIONS służy do opisania
+zabronionych kombinacji opcji kompilatora. Na przykład GCC nie
+dopuszcza użycia samej opcji -mcpu=cortex-m*, bez opcji -mthumb.
+
+Po skonfigurowaniu w pliku t-arm-elf wersji bibliotek możemy
+przystąpić do skonfigurowania kompilatora skrośnego:
+
+mkdir build
+cd build
+../configure --target=arm-eabi --prefix=/home/user/arm --enable-languages=c --with-newlib --without-headers --disable-shared
+
+Opcja --enable-languages określa języki programowania, dla których
+mają zostać zbudowane kompilatory. Żeby było szybciej, pomijamy C++.
+Ustawienie łącznie opcji --with-newlib i --without-headers sprawia, że
+biblioteka LIBGCC zostanie zbudowana bez wsparcia jakichkolwiek plików
+nagłówkowych, czyli nie będzie ona korzystać z żadnej innej
+biblioteki, natomiast pozostałe biblioteki będą mogły korzystać z
+biblioteki Newlib i jej plików nagłówkowych. Takie ustawienia są
+typowe, gdy buduje się kompilator dla systemów wbudowanych. Opcja
+--disable-shared wyłącza używanie bibliotek dzielonych, ładowanych
+dynamicznie, co w przypadku mikrokontrolerów nie miałoby po prostu
+sensu.
+
+Aby skompilować GCC, trzeba mieć zainstalowane biblioteki GMP, MPFR
+i MPC w wersji rozwojowej (ang. devel), gdyż potrzebne są pliki
+nagłówkowe: gmp.h, mpfr.h i mpc.h. Za pomocą opcji --with-gmp,
+--with-mpfr, --with-mpc można wskazać miejsce zainstalowania tych
+bibliotek, jeśli nie jest to miejsce standardowe.
+
+Najpierw kompilujemy i instalujemy sam kompilator:
+
+make all-gcc
+make install-gcc
+cd ../..
+
+Poprawność dotychczasowych etapów instalacji można sprawdzić za pomocą
+dwóch poniższych poleceń. Polecenie arm-eabi-gcc -v powinno wypisać
+coś następującego:
+
+Using built-in specs.
+COLLECT_GCC=arm-eabi-gcc
+COLLECT_LTO_WRAPPER=/home/marpe/arm/lib/gcc/arm-eabi/6.4.0/lto-wrapper
+Target: arm-eabi
+Configured with: ../configure --target=arm-eabi --prefix=/home/marpe/arm --enable-languages=c --with-newlib --without-headers --disable-shared
+Thread model: single
+gcc version 6.4.0 (GCC)
+
+Natomiast polecenie arm-eabi-gcc -print-multi-lib powinno wypisać coś
+takiego:
+
+.;
+cortex-m0;@mthumb@mcpu=cortex-m0
+cortex-m0plus;@mthumb@mcpu=cortex-m0plus
+cortex-m3;@mthumb@mcpu=cortex-m3
+cortex-m4;@mthumb@mcpu=cortex-m4
+cortex-m7;@mthumb@mcpu=cortex-m7
+cortex-m4/fpu;@mthumb@mcpu=cortex-m4@mfloat-abi=softfp@mfpu=fpv4-sp-d16
+cortex-m7/fpu;@mthumb@mcpu=cortex-m7@mfloat-abi=softfp@mfpu=fpv4-sp-d16
+
+======================================================================
+BIBLIOTEKI
+======================================================================
+
+W kolejnym kroku instalujemy biblioteki. Potrzebujemy standardowej
+biblioteki języka C. Jedną z najpowszechniej stosowanych dla systemów
+wbudowanych jest biblioteka Newlib. Można ją ściągnąć z serwera
+ftp://sources.redhat.com/pub/newlib/index.html. Rozpakowujemy źródła
+i przygotowujemy katalog, w którym będzie się odbywało kompilowanie:
+
+tar -zxf newlib-2.4.0.20161025.tar.gz
+cd newlib-2.4.0.20161025
+mkdir build
+cd build
+
+Newlib w wersjach 2.5.0.20170720 i 2.5.0.20170818 nie kompilowała się.
+
+Dla Newlib w wersji 2.1.0, z powodu błędu w skrypcie, trzeba podać
+pełną ścieżkę do skryptu configure, przykładowo:
+
+/home/user/toolchain/newlib-2.1.0/configure --target=arm-eabi --prefix=/home/user/arm --disable-shared --disable-newlib-supplied-syscalls
+
+Dla innych wersji Newlib wystarczy podanie ścieżki względnej:
+
+../configure --target=arm-eabi --prefix=/home/user/arm --disable-shared --disable-newlib-supplied-syscalls
+
+Teraz możemy skompilować bibliotekę:
+
+make CFLAGS_FOR_TARGET="-O2 -ffunction-sections -fdata-sections -D__BUFSIZ__=256"
+
+Parametr CFLAGS_FOR_TARGET polecenia make określa opcje, które mają
+być użyte podczas kompilowania biblioteki. Opcja -D__BUFSIZ__ jest
+specyficzna dla biblioteki Newlib i określa domyślny rozmiar bufora
+przydzielanego dla plików otwieranych za pomocą funkcji fopen.
+Wydawało się, że opcja -O2 jest domyślna, ale jednak nie jest.
+Opcje -ffunction-sections -fdata-sections pozwalają istotnie
+zmniejszyć rozmiar plików wynikowych, co jest bardzo istotne dla
+mikrokontrolerów. Natomiast dodanie opcji -fomit-frame-pointer wydaje
+się nie zmieniać rozmiaru pliku wynikowego.
+
+Instalowanie biblioteki odbywa się standardowo:
+
+make install
+cd ../..
+
+Pozostało jeszcze dokończenie instalowania GCC. W tym kroku
+instalujemy pomocnicze biblioteki dostarczane wraz z GCC.
+Najważniejszę z nich jest biblioteka LIBGCC. Opcji -ffunction-sections
+-fdata-sections należy użyć również do skompilowania LIBGCC. Natomiast
+-O2 wydaje się być opcją domyślną, ale nic przeszkadza, gdy ją tu
+podamy. Wykonujemy kolejno polecenia:
+
+cd gcc-6.4.0/build
+make all CFLAGS_FOR_TARGET="-O2 -ffunction-sections -fdata-sections"
+make install
+cd ../..
+
+======================================================================
+GDB
+======================================================================
+
+GDB można ściągnąć ze strony http://ftp.gnu.org/gnu/gdb. Instalowanie
+przebiega podobnie jak poprzednich składników. Muszą być zainstalowane
+pakiety makeinfo, libyui-ncurses-devel, libexpat-devel i termcap.
+
+tar -xzf gdb-8.0.1.tar.gz
+cd gdb-8.0.1
+mkdir build
+cd build
+../configure --target=arm-eabi --prefix=/home/user/arm
+make
+make install
+cd ../..
+
+======================================================================
+OpenOCD dla ST-LINK
+======================================================================
+
+Potrzebujemy biblioteki libusb w wersji rozwojowej (ang. devel).
+OpenOCD można ściągnąć ze strony
+http://sourceforge.net/projects/openocd/files/openocd.
+W wersji 0.8.0 pakiet trzeba załatać: dodać w pliku stm32f2x.c obsługę
+STM32F411.
+Instaluje się prawie standardowo, może się okazać, że trzeba:
+- zmienić w skrypcie configure w pierwszym wierszu interpreter poleceń na
+  #!/bin/bash, żeby poprawnie była interpretowana opcja -e w poleceniu "echo -e"
+  (jest to potrzebne np. na maszynie students);
+- wyłączyć flagę -Werror.
+
+tar -xzf openocd-0.10.0.tar.gz
+cd openocd-0.10.0
+mkdir build
+cd build
+../configure --prefix=/home/user/arm --enable-stlink --disable-werror
+make
+make install
+cd ../..
+
+Odpowiednie opcje --enable podajemy zależnie od tego, jakiego adaptera
+JTAG lub SWD chcemy używać do programowania. W celu sprawdzenie
+poprawności instalacji wywołujemy polecenie openocd -v, które powinno
+wypisać coś takiego:
+
+Open On-Chip Debugger 0.10.0
+Licensed under GNU GPL v2
+For bug reports, read
+        http://openocd.org/doc/doxygen/bugs.html
+
+Używamy udev, aby umożliwić korzystanie z adaptera JTAG lub SWD bez
+uprawnień administratora. Najprościej jest skopiować plik
+60-openocd.rules, który znajduje się w katalogu openocd-0.10.0/contrib
+do katalogu /etc/udev/rules.d. Istotne są tylko reguły dla STLink.
+Pozostałe reguły można usunąć. W pliku 60-openocd.rules należy ponadto
+przydzielić uprawnienia właściwym użytkownikom, np. zmieniając wpis
+GROUP="plugdev" na GROUP="users". Musi istnieć grupa użytkowników o
+podanej nazwie. Nowe reguły uaktywnia się za pomocą polecenia
+
+/etc/init.d/udev restart
+
+lub innego podobnego, np.
+
+/etc/init.d/boot.udev restart
+
+Uwaga, jeśli adapter JTAG lub SWD jest podłączony podczas powyższych
+zmian konfiguracji udev, to nowe uprawnienia będą aktywne po wyjęciu
+i ponownym włożeniu wtyczki USB.
+
+Ręczne konfigurowanie udev nie jest potrzebne, gdy OpenOCD jest instalowany
+z paczki rpm.
+
+Żeby móc używać ST-LINK/V1, trzeba stworzyć plik
+/etc/modprobe.d/stlink_v1.conf o zawartości
+
+options usb-storage quirks=483:3744:i
+
+i przeładować usb-storage
+
+modprobe -r usb-storage && modprobe usb-storage
+
+Interesujące informacje można znaleźć tu:
+http://openhardware.net/Embedded_ARM/OpenOCD_JTAG
+
+======================================================================
+Dodatkowe pakiety
+======================================================================
+
+Potrzebny jest program do komunikowania z wirtualnym portem
+szeregowym /dev/ttyACM0, np. minicom. Żeby nie blokować dostępu do
+tego urządzenia, trzeba dezaktywować usługę ModemManager -- u mnie
+można to zrobić po kliknięciu na ikonę Zarządzanie usługami w YaST.
+
+Minicom można ściągnąć ze strony
+https://alioth.debian.org/frs/?group_id=30018.
+
+tar -xzf minicom-2.7.tar.gz
+cd minicom-2.7
+mkdir build
+cd build
+../configure --prefix=/home/user/minicom
+make
+make install
+cd ../..

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Run Open On Chip Debugger for STM NUCLEO-F4xxxx board
+
+openocd -f board/st_nucleo_f4.cfg 

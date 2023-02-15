@@ -1,0 +1,44 @@
+# Copyright (C) 1998-2013 Free Software Foundation, Inc.
+#
+# This file is part of GCC.
+#
+# GCC is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+#
+# GCC is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+
+# Modified by Marcin Peczarski for ARM Cortex-M architecture
+
+MULTILIB_OPTIONS     = mthumb
+MULTILIB_OPTIONS    += mcpu=cortex-m0/mcpu=cortex-m0plus/mcpu=cortex-m3/mcpu=cortex-m4/mcpu=cortex-m7
+MULTILIB_OPTIONS    += mfloat-abi=softfp
+MULTILIB_OPTIONS    += mfpu=fpv4-sp-d16
+MULTILIB_OPTIONS    += mfpu=fpv5-sp-d16
+MULTILIB_OPTIONS    += mfpu=fpv5-d16
+
+MULTILIB_REQUIRED    = mthumb/mcpu=cortex-m0
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m0plus
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m3
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m4
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m4/mfloat-abi=softfp/mfpu=fpv4-sp-d16
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m7
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m7/mfloat-abi=softfp/mfpu=fpv5-sp-d16
+MULTILIB_REQUIRED   += mthumb/mcpu=cortex-m7/mfloat-abi=softfp/mfpu=fpv5-d16
+
+MULTILIB_OSDIRNAMES  = mthumb/mcpu.cortex-m0=!cortex-m0
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m0plus=!cortex-m0plus
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m3=!cortex-m3
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m4=!cortex-m4
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m4/mfloat-abi.softfp/mfpu.fpv4-sp-d16=!cortex-m4/fpu
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m7=!cortex-m7
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m7/mfloat-abi.softfp/mfpu.fpv5-sp-d16=!cortex-m7/fpu-sp
+MULTILIB_OSDIRNAMES += mthumb/mcpu.cortex-m7/mfloat-abi.softfp/mfpu.fpv5-d16=!cortex-m7/fpu-dp

@@ -1,0 +1,89 @@
+#!/bin/sh
+
+# Skrypt instalujący narzędzia programistyczne na
+# zajęcia z programowania mikrokontrolerów 2.0
+#
+# Do bieżącego katalogu, w którym znajduje się ten skrypt,
+# należy skopiować paczki:
+#
+# binutils-2.37.tar.xz  [http://ftp.gnu.org/gnu/binutils]
+# gcc-10.3.0.tar.xz     [http://gcc.gnu.org/mirrors.html]
+# newlib-4.1.0.tar.gz   [ftp://sources.redhat.com/pub/newlib/index.html]
+#                       [https://www.sourceware.org/pub/newlib/index.html]
+# gdb-11.1.tar.xz       [http://ftp.gnu.org/gnu/gdb]
+#
+# oraz konfigurację multilib:
+#
+# t-arm-elf
+#
+# Do prawidłowego skompilowania gcc potrzebne są pakiety
+# gmp, mpfr, mpc w wersji devel.
+
+# Przerwanie skryptu, gdy któreś polecenie zakończy się błędem.
+set -e
+
+# Ustawienie, gdzie ma zostać zainstalowany zestaw narzędzi.
+PREFIX=$HOME/arm
+# PREFIX=/home/students/inf/PUBLIC/arm
+
+# Wersje instalowanych pakietów
+BINUTILS_VER=2.37
+GCC_VER=10.3.0
+NEWLIB_VER=4.1.0
+GDB_VER=11.1
+
+# Instalowane pliki mają być dostępne dla wszystkich.
+umask 022
+
+# Dodanie ścieżki dostępu
+# Docelowo należy coś podobnego wpisać np. do .bash_profile lub .bashrc
+PATH=$PATH:$PREFIX/bin
+export PATH
+
+tar -xf binutils-$BINUTILS_VER.tar.xz
+cd binutils-$BINUTILS_VER
+mkdir -p build
+cd build
+../configure --target=arm-eabi --prefix=$PREFIX
+make -j 3
+make install
+cd ../..
+
+tar -xf gcc-$GCC_VER.tar.xz
+# Skonfigurowanie multilib
+cp t-arm-elf gcc-$GCC_VER/gcc/config/arm/t-arm-elf
+cd gcc-$GCC_VER
+mkdir -p build
+cd build
+../configure --target=arm-eabi --prefix=$PREFIX --enable-languages=c --with-newlib --without-headers --disable-shared
+make -j 3 all-gcc
+make install-gcc
+cd ../..
+
+tar -zxf newlib-$NEWLIB_VER.tar.gz
+cd newlib-$NEWLIB_VER
+mkdir -p build
+cd build
+../configure --target=arm-eabi --prefix=$PREFIX --disable-shared --disable-newlib-supplied-syscalls --enable-newlib-io-pos-args --enable-newlib-io-c99-formats --enable-newlib-io-long-long --enable-newlib-io-long-double
+make -j 3 CFLAGS_FOR_TARGET="-O2 -ffunction-sections -fdata-sections -D__BUFSIZ__=256"
+make install
+cd ../..
+
+cd gcc-$GCC_VER/build
+make -j 3 all CFLAGS_FOR_TARGET="-O2 -ffunction-sections -fdata-sections"
+make install
+cd ../..
+
+tar -xf gdb-$GDB_VER.tar.xz
+cd gdb-$GDB_VER
+mkdir -p build
+cd build
+../configure --target=arm-eabi --prefix=$PREFIX
+make -j 3
+make install
+cd ../..
+
+# Pobieżne sprawdzenie poprawności instalacji
+arm-eabi-gcc -v
+arm-eabi-gcc -print-multi-lib
+arm-eabi-gdb -v
