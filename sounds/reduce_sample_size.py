@@ -33,4 +33,3 @@ with open(args.input, "rb") as inp:
 
 with open(args.output, "wb") as out:
     out.write(song_samples_reduced.tobytes())
-

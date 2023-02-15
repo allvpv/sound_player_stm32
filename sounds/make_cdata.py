@@ -37,7 +37,3 @@ with open(args.input, "rb") as inp, open(args.output, "wb") as out:
         insert_separator = True
 
     out.write(b'\n')
-
-
-
-
