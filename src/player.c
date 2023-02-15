@@ -8,13 +8,13 @@
 _Static_assert(PLAYBACK_STEP % 11 == 0, "Playback adjustment step: must a be multiple of 11, "
     "otherwise pointer to bit packed data will end up in wrong state.");
 
+
 const unsigned char sound1[] = {
-/* #embed "sound_funny.raw11" soon */
-#include "sound_funny.raw11.cdata"
+#include "sound_jingle.raw11.cdata"
 };
 
 void SetupForPeriodicQuery_Tim2(void);
-void SetupForPWM_Tim3_PB5(void);
+void SetupForPWM_Tim3_PC7(void);
 
 void DisableOutput(void);
 void EnableOutput(void);
@@ -87,7 +87,7 @@ void Setup96MhzClock(void) {
         __NOP();
 }
 
-void SetupForPWM_Tim3_PB5(void) {
+void SetupForPWM_Tim3_PC7(void) {
     /* Enable TIM3 */
     RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
 
@@ -243,7 +243,7 @@ int main(void) {
     NVIC_EnableIRQ(EXTI9_5_IRQn);   /* DOWN joystick button  */
     NVIC_EnableIRQ(EXTI15_10_IRQn); /* PRESS joystick button */
 
-    SetupForPWM_Tim3_PB5();
+    SetupForPWM_Tim3_PC7();
     SetupForPeriodicQuery_Tim2();
 
     /* Play song */

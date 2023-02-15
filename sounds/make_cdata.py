@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 
-parser = argparse.ArgumentParser(description='Converts to <![CDATA[]]> format.')
+parser = argparse.ArgumentParser(description='Converts to cdata format.')
 
 parser.add_argument('--input', type=str, help='input file: raw binary data', required=True)
-parser.add_argument('--output', type=str, help='output file: <![CDATA[]]>', required=True)
+parser.add_argument('--output', type=str, help='output file: cdata', required=True)
 parser.add_argument('--when_newline', type=int, help='how often insert newline', default=15)
 
 args = parser.parse_args()
