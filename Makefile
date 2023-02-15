@@ -1,18 +1,31 @@
-BINARY = player
-CSTD = -std=c2x
+CC = arm-none-eabi-gcc
+OBJCOPY = arm-none-eabi-objcopy
+FLAGS = -mthumb -mcpu=cortex-m4
+CPPFLAGS = -DSTM32F411xE
 
-LDSCRIPT = build/nucleo-f411re.ld
+CFLAGS = $(FLAGS) -Wall -g -std=c2x \
+			-O2 -ffunction-sections -fdata-sections \
+			-I./stm32/inc \
+			-I./stm32/CMSIS/Include \
+			-I./stm32/CMSIS/Device/ST/STM32F4xx/Include
 
-.DEFAULT_GOAL := all
+LDFLAGS = $(FLAGS) -Wl,--gc-sections -nostartfiles \
+			-L./stm32/lds -Tstm32f411re.lds
 
-player.o: sound_funny.raw11.cdata
+vpath %.c ./stm32/src
 
-%.raw11: %.raw16
-	./reduce_sample_size.py --input $(*).raw16 --output $(*).raw11 --n 11
+OBJECTS = player.o startup_stm32.o delay.o gpio.o
+TARGET = player
 
-%.raw11.cdata: %.raw11
-	./make_cdata.py --input $(*).raw11 --output $(*).raw11.cdata
+.SECONDARY: $(TARGET).elf $(OBJECTS)
 
-include build/Makefile.include
+all: $(TARGET).bin
 
+%.elf : $(OBJECTS)
+		$(CC) $(LDFLAGS) $^ -o $@
 
+%.bin : %.elf
+		$(OBJCOPY) $< $@ -O binary
+
+clean:
+		rm -f *.bin *.elf *.hex *.d *.o *.bak *~
