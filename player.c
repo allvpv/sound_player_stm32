@@ -4,32 +4,9 @@
 #include <stm32.h>
 #include <gpio.h>
 
-#define SET_PLAYBACK_LED_INDICATOR() \
-    GPIOA->BSRR = 1 << (6 + 16)
-
-#define CLEAR_PLAYBACK_LED_INDICATOR() \
-    GPIOA->BSRR = 1 << 6
-
-/* Debouncing parameters */
-#define WARMUP_COUNT 4
-#define COOLOUT_COUNT 50
-
 #define PLAYBACK_STEP 75680 /* About 0.4 of second */
 _Static_assert(PLAYBACK_STEP % 11 == 0, "Playback adjustment step: must a be multiple of 11, "
     "otherwise pointer to bit packed data will end up in wrong state.");
-
-/* Button value fetching */
-#define GET_BUTTON(GPIO, PIN) gpio_get((GPIO), (PIN))
-
-#define LEFT_JOY_BTN_GPIO_PIN   3
-#define RIGHT_JOY_BTN_GPIO_PIN  4
-#define DOWN_JOY_BTN_GPIO_PIN   6
-#define PRESS_JOY_BTN_GPIO_PIN  0
-
-#define GET_BUTTON_LEFT()  (!gpio_get(GPIOB, LEFT_JOY_BTN_GPIO_PIN))
-#define GET_BUTTON_RIGHT() (!gpio_get(GPIOB, RIGHT_JOY_BTN_GPIO_PIN))
-#define GET_BUTTON_DOWN() (!gpio_get(GPIOB, DOWN_JOY_BTN_GPIO_PIN))
-#define GET_BUTTON_PRESS() (!gpio_get(GPIOB, PRESS_JOY_BTN_GPIO_PIN))
 
 const unsigned char sound1[] = {
 /* #embed "sound_funny.raw11" soon */
@@ -129,17 +106,14 @@ void SetupForPWM_Tim3_PB5(void) {
     NVIC_DisableIRQ(TIM3_IRQn);
     NVIC_SetPriority(TIM3_IRQn, 0);
 
-    /* Enable GPIOB */
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
+    /* Set mode for PC7: alternative function */
+    GPIOC->MODER |= GPIO_MODER_MODER7_1;
 
-    /* Set mode for PB5: alternative function */
-    GPIOB->MODER |= GPIO_MODER_MODER5_1;
+    /* Set alternative function for output pin (TIM3_CH2 for PC_7 - AF_2) */
+    GPIOC->AFR[0] |= GPIO_AFRL_AFSEL7_1;
 
-    /* Set alternative function for output pin (TIM3_CH2 for PB_5 - AF_2) */
-    GPIOB->AFR[0] |= GPIO_AFRL_AFSEL5_1;
-
-    /* Disable no PU_PD for PB_5 */
-    GPIOB->PUPDR &= ~GPIO_PUPDR_PUPD5;
+    /* Disable no PU_PD for PC_7 */
+    GPIOC->PUPDR &= ~GPIO_PUPDR_PUPD7;
 
     /* Disable output */
     DisableOutput();
@@ -154,57 +128,123 @@ void SetupForPWM_Tim3_PB5(void) {
     TIM3->EGR |= TIM_EGR_UG;
 }
 
-//void SetupForPeriodicQuery_Tim2(void) {
-//	/* Enable TIM2 clock. */
-//	rcc_periph_clock_enable(RCC_TIM2);
-//
-//	/* Enable TIM2 interrupt. */
-//	nvic_enable_irq(NVIC_TIM2_IRQ);
-//
-//	/* Reset TIM2 peripheral to defaults. */
-//	rcc_periph_reset_pulse(RST_TIM2);
-//
-//	/* Timer global mode: No divider, Alignment edge, Direction up */
-//	timer_set_mode(TIM2, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
-//
-//	/* Disable preload. */
-//	timer_disable_preload(TIM2);
-//	timer_continuous_mode(TIM2);
-//
-//	/* Set timer to 10ms */
-//    timer_set_period(TIM2, 500);
-//	timer_set_prescaler(TIM2, (rcc_apb1_frequency * 2) / 50'000);
-//
-//	/* Counter enable. */
-//	timer_enable_counter(TIM2);
-//
-//	/* Enable interrupt */
-//	timer_enable_irq(TIM2, TIM_DIER_CC1IE);
-//
-//    /* Set maximal priority of interrupt */
-//    nvic_set_priority(NVIC_TIM2_IRQ, 0);
-//}
+#define ENABLE_TIM2_COUNTER()           \
+    do {                                \
+        /* Enable counter. */           \
+        TIM2->CR1 |= TIM_CR1_CEN;       \
+        /* Enable NVIC interrupt. */    \
+        NVIC_EnableIRQ(TIM2_IRQn);      \
+    } while (false);
+
+#define DISABLE_TIM2_COUNTER()          \
+    do {                                \
+        /* Disable counter. */          \
+        TIM2->CR1 &= ~TIM_CR1_CEN;      \
+        /* Disable NVIC interrupt. */   \
+        NVIC_DisableIRQ(TIM2_IRQn);     \
+    } while (false);
+
+void SetupForPeriodicQuery_Tim2(void) {
+    /* Enable TIM2 clock. */
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+
+    /* Set timer to 10ms */
+    TIM2->ARR = 500;
+    TIM2->PSC = TIM_PWM_BASE_CLOCK / 50'000;
+
+    TIM2->CR1 &= ~TIM_CR1_CKD;  /* No divider. */
+    TIM2->CR1 &= ~TIM_CR1_ARPE; /* Disable preload. */
+    TIM2->CR1 &= ~TIM_CR1_OPM;  /* Continous mode. Enable timer to run continously. */
+    TIM2->CR1 &= ~TIM_CR1_CMS;  /* Set CMS to alignment edge. */
+    TIM2->CR1 &= ~TIM_CR1_DIR;  /* Set DIR to counting up. */
+    TIM2->CR1 |= TIM_CR1_CEN;   /* Enable Counter. */
+
+    /* Enable interrupt in DIER. */
+    TIM2->DIER |= TIM_DIER_CC1IE;
+
+    /* Disable NVIC interrupt and counter. */
+    DISABLE_TIM2_COUNTER();
+
+    /* Set maximal priority for the interrupt. */
+    NVIC_SetPriority(TIM3_IRQn, 0);
+}
+
+#define RED_LED_GPIO GPIOA
+#define GREEN_LED_GPIO GPIOA
+
+#define RED_LED_PIN 6
+#define GREEN_LED_PIN 7
+
+#define LEFT_JOY_BTN_PIN   3
+#define RIGHT_JOY_BTN_PIN  4
+#define DOWN_JOY_BTN_PIN   6
+#define PRESS_JOY_BTN_PIN  10
+
+#define GET_BUTTON_LEFT()  GET_BUTTON(GPIOB, LEFT_JOY_BTN_PIN)
+#define GET_BUTTON_RIGHT() GET_BUTTON(GPIOB, RIGHT_JOY_BTN_PIN)
+#define GET_BUTTON_DOWN()  GET_BUTTON(GPIOB, DOWN_JOY_BTN_PIN)
+#define GET_BUTTON_PRESS() GET_BUTTON(GPIOB, PRESS_JOY_BTN_PIN)
+
+/* Button value fetching */
+#define GET_BUTTON(GPIO, PIN) (!(((GPIO)->IDR >> (PIN)) & 1))
+
+#define LED_ON(LED_GPIO, LED_PIN)                   \
+    (LED_GPIO)->BSRR = 1 << ((LED_PIN) + 16)
+
+#define LED_OFF(LED_GPIO, LED_PIN)                  \
+    (LED_GPIO)->BSRR = 1 << (LED_PIN)
+
+#define IS_LED_ON(LED_GPIO, LED_PIN)                \
+    (!(((LED_GPIO)->IDR >> (LED_PIN)) & 1))
+
+#define LED_TOGGLE(LED_GPIO, LED_PIN)               \
+    if (IS_LED_ON((LED_GPIO), (LED_PIN))) {         \
+        LED_OFF((LED_GPIO), (LED_PIN));             \
+    } else {                                        \
+        LED_ON((LED_GPIO), (LED_PIN));              \
+    }
+
+#define CONFIGURE_LED(LED_GPIO, LED_PIN)            \
+    GPIOoutConfigure((LED_GPIO),                    \
+                     (LED_PIN),                     \
+                     GPIO_OType_PP,                 \
+                     GPIO_Low_Speed,                \
+                     GPIO_PuPd_NOPULL)
+
+#define CONFIGURE_BUTTON(BTN_GPIO, BTN_PIN)         \
+    GPIOinConfigure((BTN_GPIO),                     \
+                    (BTN_PIN),                      \
+                    GPIO_PuPd_NOPULL,               \
+                    EXTI_Mode_Interrupt,            \
+                    EXTI_Trigger_Falling)
 
 int main(void) {
     Setup96MhzClock();
 
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
+                    RCC_AHB1ENR_GPIOBEN |
+                    RCC_AHB1ENR_GPIOCEN;
 
-    GPIOoutConfigure(GPIOA, 6, GPIO_OType_PP, GPIO_Low_Speed, GPIO_PuPd_NOPULL);
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-    /*
-    GPIOinConfigure(GPIOB, LEFT_JOY_BTN_GPIO_PIN,
-                    GPIO_PuPd_NOPULL,
-                    EXTI_Mode_Interrupt,
-                    EXTI_Trigger_Rising_Falling);
-    gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, LEFT_JOY_BTN_GPIO_PIN);
-    gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, RIGHT_JOY_BTN_GPIO_PIN);
-    gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, DOWN_JOY_BTN_GPIO_PIN);
-    gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, PRESS_JOY_BTN_GPIO_PIN);
-    */
+    LED_OFF(RED_LED_GPIO, RED_LED_PIN);
+    LED_OFF(GREEN_LED_GPIO, GREEN_LED_PIN);
+
+    CONFIGURE_LED(GREEN_LED_GPIO, GREEN_LED_PIN);
+    CONFIGURE_LED(RED_LED_GPIO, RED_LED_PIN);
+    CONFIGURE_BUTTON(GPIOB, LEFT_JOY_BTN_PIN);
+    CONFIGURE_BUTTON(GPIOB, RIGHT_JOY_BTN_PIN);
+    CONFIGURE_BUTTON(GPIOB, DOWN_JOY_BTN_PIN);
+    CONFIGURE_BUTTON(GPIOB, PRESS_JOY_BTN_PIN);
+
+    EXTI->PR |= 0;
+    NVIC_EnableIRQ(EXTI3_IRQn);     /* LEFT joystick button  */
+    NVIC_EnableIRQ(EXTI4_IRQn);     /* RIGHT joystick button */
+    NVIC_EnableIRQ(EXTI9_5_IRQn);   /* DOWN joystick button  */
+    NVIC_EnableIRQ(EXTI15_10_IRQn); /* PRESS joystick button */
 
     SetupForPWM_Tim3_PB5();
-    // SetupForPeriodicQuery_Tim2();
+    SetupForPeriodicQuery_Tim2();
 
     /* Play song */
     SetupSongPlayback(sound1, sizeof(sound1) / sizeof(*sound1));
@@ -254,11 +294,11 @@ void SetSongPlayback(void) {
     if (gSongPlayback) {
         EnableOutput();
         NVIC_EnableIRQ(TIM3_IRQn);
-        SET_PLAYBACK_LED_INDICATOR();
+        LED_TOGGLE(GREEN_LED_GPIO, GREEN_LED_PIN);
     } else {
         DisableOutput();
         NVIC_DisableIRQ(TIM3_IRQn);
-        CLEAR_PLAYBACK_LED_INDICATOR();
+        LED_TOGGLE(GREEN_LED_GPIO, GREEN_LED_PIN);
     }
 }
 
@@ -337,72 +377,134 @@ void TIM3_IRQHandler(void) {
     TIM3->CCR2 = next_sample;
 }
 
+/* Debouncing parameters */
+#define WARMUP_STEPS 4
+#define COOLOUT_STEPS 8
+
 /*
  * Song position control
  */
-
 struct button_state {
-    uint16_t warmup;
-    uint16_t coolout;
+    union {
+        uint16_t warmup_steps_left;
+        uint16_t coolout_steps_left;
+    };
 
-    bool right_now_pressed;
+    enum {
+        IDLE = 0, WARMING_UP, COOLING_OUT
+    } currently;
 };
 
-bool CheckButton(struct button_state* state);
+static struct button_state gLeftState = {};
+static struct button_state gRightState = {};
+static struct button_state gDownState = {};
+static struct button_state gPressState = {};
 
-struct button_state gLeftState = {};
-struct button_state gRightState = {};
-struct button_state gDownState = {};
-struct button_state gPressState = {};
+typedef enum {
+    WAITING,
+    PRESSED,
+    IS_IDLE,
+} CheckButtonResult;
 
-bool CheckButton(struct button_state* state) {
-    if (state->coolout) {
-        state->coolout -= 1;
-        return false;
+static CheckButtonResult CheckButton(bool now_pressed, struct button_state* state) {
+    if (state->currently == WARMING_UP) {
+        if (!now_pressed) {
+            state->currently = IDLE;
+            state->warmup_steps_left = 0;
+            state->coolout_steps_left = 0;
+
+            return IS_IDLE;
+        }
+
+        if (--state->warmup_steps_left == 0) {
+            state->currently = COOLING_OUT;
+            state->coolout_steps_left = COOLOUT_STEPS;
+
+            return PRESSED;
+        }
+
+        return WAITING;
     }
 
-    if (!state->right_now_pressed) {
-        state->warmup = 0;
-        return false;
+    else if (state->currently == COOLING_OUT) {
+        if (--state->coolout_steps_left == 0) {
+            state->currently = IDLE;
+            return IS_IDLE;
+        }
+
+        return WAITING;
     }
 
-    state->warmup += 1;
-
-    if (state->warmup ==  WARMUP_COUNT) {
-        state->warmup = 0;
-        state->coolout = COOLOUT_COUNT;
-        return true;
-    }
-
-    return false;
+    return IS_IDLE;
 }
 
-/* Every 10 ms */
-/*
-void tim2_isr(void) {
-    if (!(TIM_SR(TIM2) & TIM_SR_CC1IF))
-        return;
+/* Every 10 ms when counter is enabled */
+void TIM2_IRQHandler(void) {
+    if (TIM2->SR & TIM2->DIER & TIM_SR_CC1IF) {
+        TIM2->SR &= ~TIM_SR_CC1IF;
 
-    gLeftState.right_now_pressed = GET_BUTTON_LEFT();
-    gRightState.right_now_pressed = GET_BUTTON_RIGHT();
-    gDownState.right_now_pressed = GET_BUTTON_DOWN();
-    gPressState.right_now_pressed = GET_BUTTON_PRESS();
+        LED_ON(RED_LED_GPIO, RED_LED_PIN);
 
-    if (CheckButton(&gLeftState)) {
-        MoveSongBackward();
+        CheckButtonResult result;
+        bool idle = true;
+
+        result = CheckButton(GET_BUTTON_LEFT(), &gLeftState);
+        idle = idle && (result == IS_IDLE);
+
+        if (result == PRESSED)
+            MoveSongBackward();
+
+        result = CheckButton(GET_BUTTON_RIGHT(), &gRightState);
+        idle = idle && (result == IS_IDLE);
+
+        if (result == PRESSED)
+            MoveSongForward();
+
+        result = CheckButton(GET_BUTTON_DOWN(), &gDownState);
+        idle = idle && (result == IS_IDLE);
+
+        if (result == PRESSED)
+            ResetSongPosition();
+
+        result = CheckButton(GET_BUTTON_PRESS(), &gPressState);
+        idle = idle && (result == IS_IDLE);
+
+        if (result == PRESSED) {
+            gSongPlayback ^= true;
+            SetSongPlayback();
+        }
+
+        if (idle) {
+            DISABLE_TIM2_COUNTER();
+            LED_OFF(RED_LED_GPIO, RED_LED_PIN);
+        }
     }
-
-    if (CheckButton(&gRightState))
-        MoveSongForward();
-
-    if (CheckButton(&gDownState))
-        ResetSongPosition();
-
-    if (CheckButton(&gPressState)) {
-        gSongPlayback ^= true;
-        SetSongPlayback();
-    }
-
-    TIM_SR(TIM2) &= ~TIM_SR_CC1IF;
 }
-*/
+
+void maybe_handle(struct button_state* state, int pin, bool is_pressed) {
+    if (EXTI->PR & (1 << pin)) {
+        EXTI->PR = 1 << pin;
+
+        if (is_pressed && state->currently == IDLE) {
+            state->currently = WARMING_UP;
+            state->warmup_steps_left = WARMUP_STEPS;
+            ENABLE_TIM2_COUNTER();
+        }
+    }
+}
+
+void EXTI3_IRQHandler(void) {
+    maybe_handle(&gLeftState, LEFT_JOY_BTN_PIN, GET_BUTTON_LEFT());
+}
+
+void EXTI4_IRQHandler(void) {
+    maybe_handle(&gRightState, RIGHT_JOY_BTN_PIN, GET_BUTTON_RIGHT());
+}
+
+void EXTI9_5_IRQHandler(void) {
+    maybe_handle(&gDownState, DOWN_JOY_BTN_PIN, GET_BUTTON_DOWN());
+}
+
+void EXTI15_10_IRQHandler(void) {
+    maybe_handle(&gPressState, PRESS_JOY_BTN_PIN, GET_BUTTON_PRESS());
+}
